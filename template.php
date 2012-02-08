@@ -8,6 +8,11 @@
  * Implements hook_theme().
  */
 function twig_theme($existing, $type, $theme, $path) {
+  // This theme use custom template directory, that we can allow system install
+  // modified default theme templates.
+  // Default path is: /path/to/twig/templates
+  $path = variable_get('twig_path', $path . '/templates');
+
   $templates = drupal_find_theme_templates($existing, '.twig', $path);
   foreach (array_keys($templates) as $i) {
     $templates[$i] = $existing[$i];
