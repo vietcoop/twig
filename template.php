@@ -8,17 +8,65 @@
  * Implements hook_theme().
  */
 function twig_theme($existing, $type, $theme, $path) {
-  $templates = drupal_find_theme_templates($existing, '.twig.html', $path);
+  $templates = drupal_find_theme_templates($existing, '.twig', $path);
   foreach (array_keys($templates) as $i) {
     $templates[$i] = $existing[$i];
+    unset($templates[$i]['file']);
     $templates[$i]['function'] = 'twig_theme_callback';
+    if (is_string($existing[$i]['template'])) {
+      $templates[$i]['preprocess functions'][] = "twig_preprocess_{$existing[$i]['template']}";
+    }
   }
   return $templates;
 }
 
 /**
+ * Load Twig.
+ */
+function twig_load() {
+  static $loaded = FALSE;
+  if (!$loaded) {
+    // Register the Twig auto-loader.
+    require_once (DRUPAL_ROOT . '/sites/all/libraries/twig/lib/Twig/Autoloader.php');
+    Twig_Autoloader::register();
+    $loaded = TRUE;
+  }
+  return $loaded;
+}
+
+function twig_instance($path = '') {
+  static $twig = NULL;
+  static $loader = NULL;
+  if (!isset($twig)) {
+    $loader = new Twig_Loader_Filesystem($path);
+
+    $options['debug'] = variable_get('twig_debug', FALSE);
+    $options['autoescape'] = variable_get('twig_autoescape', FALSE);
+    if (variable_get('twig_cache', TRUE)) {
+      $options['cache'] = file_directory_temp();
+    }
+
+    $twig = new Twig_Environment($loader, $options);
+
+    $filters['render'] = 'render';
+    $filters['t']     = 't';
+    $filters['url']   = 'url';
+    $filters['hide']  = 'hide';
+    $filters['debug'] = function_exists('kpr') ? 'kpr' : 'vardump';
+
+    foreach ($filters as $filter => $function) {
+      $twig->addFilter($filter, new Twig_Filter_Function($function));
+    }
+  }
+  elseif (isset($loader) && !empty($path)) {
+    $loader->addPath($path);
+  }
+  return $twig;
+}
+
+/**
  * Clone of theme().
- * 
+ *
  * We are sure this is template-theme.
  * Template file placed under this theme /templates/
  */
@@ -102,8 +150,10 @@ function twig_theme_twin($hook, $variables) {
     $variables['theme_hook_suggestions'] = array();
     foreach (array('preprocess functions', 'process functions') as $phase) {
       if (!empty($info[$phase])) {
+        #dsm($phase);
         foreach ($info[$phase] as $processor_function) {
           if (function_exists($processor_function)) {
+            #dsm($processor_function);
             // We don't want a poorly behaved process function changing $hook.
             $hook_clone = $hook;
             $processor_function($variables, $hook_clone);
@@ -145,7 +195,7 @@ function twig_theme_twin($hook, $variables) {
   }
 
   // Render the output using the template file.
-  $template_file = $info['template'] . '.twig.html';
+  $template_file = $info['template'] . '.twig';
   $template_file = basename($template_file);
   $template_file = $info['theme path'] . '/templates/' . $template_file;
   $output = twig_render_template($template_file, $variables);
@@ -171,46 +221,16 @@ function twig_preprocess_html(&$vars) {
 }
 
 /**
- * Load Twig.
+ *
+ * @param type $vars
  */
-function twig_load() {
-  static $loaded = FALSE;
-  if (!$loaded) {
-    // Register the Twig auto-loader.
-    require_once (DRUPAL_ROOT . '/sites/all/libraries/twig/lib/Twig/Autoloader.php');
-    Twig_Autoloader::register();
-    $loaded = TRUE;
-  }
-  return $loaded;
-}
-
-function twig_instance($path = '') {
-  static $twig = NULL;
-  static $loader = NULL;
-  if (!isset($twig)) {
-    $loader = new Twig_Loader_Filesystem($path);
-
-    $options['debug'] = variable_get('twig_debug', FALSE);
-    $options['autoescape'] = variable_get('twig_autoescape', FALSE);
-    if (variable_get('twig_cache', TRUE)) {
-      $options['cache'] = file_directory_temp();
-    }
-
-    $twig = new Twig_Environment($loader, $options);
-
-    $filters['render'] = 'render';
-    $filters['t'] = 't';
-    $filters['url'] = 'url';
-    $filters['debug'] = function_exists('kpr') ? 'kpr' : 'vardump';
-
-    foreach ($filters as $filter => $function) {
-      $twig->addFilter($filter, new Twig_Filter_Function($function));
+function twig_preprocess_node(&$vars) {
+  foreach (array('comments', 'links') as $i) {
+    if (isset($vars['content'][$i])) {
+      $vars[$i] = $vars['content'][$i];
+      unset($vars['content'][$i]);
     }
   }
-  elseif (isset($loader) && !empty($path)) {
-    $loader->addPath($path);
-  }
-  return $twig;
 }
 
 /**
@@ -226,3 +246,4 @@ function twig_render_template($template_file, $variables) {
     return ob_get_clean();
   }
 }
+

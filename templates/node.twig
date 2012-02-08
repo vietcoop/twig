@@ -1,0 +1,36 @@
+<article id="article-{{ node.nid }}" class="{{ classes}} clearfix"{{ attributes}}>
+
+  {{ unpublished }}
+
+  {% if picture %}
+    {{ picture|render }}
+  {% endif %}
+
+  {{ title_prefix|render }}
+  {% if title %}
+    {% if not page %}
+      <h2 class="title">
+        <a href="{{ node_url|render }}">{{ title|render }}</a>
+      </h2>
+    {% endif %}
+  {% endif %}
+  {{ title_suffix|render }}
+
+  {% if display_submitted %}
+    <footer class="submitted{{ user_picture ? ' with-user-picture' : ''}}">
+      {{ user_picture }}
+      <p class="author-datetime">{{ submitted }}</p>
+    </footer>
+  {% endif %}
+
+  <div {{content_attributes}}>
+    {{ content|render }}
+  </div>
+
+  {% if links %}
+    <nav class="clearfix">{{ links|render }}</nav>
+  {% endif %}
+
+  {{ comments|render }}
+
+</article>
